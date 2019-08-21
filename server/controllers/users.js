@@ -1,27 +1,31 @@
-// This module handles 'users' routing
-module.exports = (app, server, mongoose, UserSchema) => {
-    // <-- Modules --->
-    const bcrypt = require('bcrypt') // imports bcrypt module
+// This module handles the 'users' controll functions
+// <--- Modules --->
+const User = require('mongoose').model('User'); // User model
+const bcrypt = require('bcrypt') // imports bcrypt module
 
-    // <--- DB Settings --->
-    const User = mongoose.model('User', UserSchema); // Model to create documents and chain mongoose methods
+// <--- Variables --->
+// Date formatting for birthday
+const options = {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+}
 
-    // <--- Routing --->
-    // ** GET Routes **
-    app.get('/users/show', (req, res) => {
+// <--- Controller Functions --->
+module.exports = {
+    index: (req, res) => {
+        res.render('index');
+    },
+    show: (req, res) => {
+        // validates session
+        if (!req.session.email) {
+            res.redirect('/');
+        } else {
         // Queries DB for the user with the matching ID
         res.render('users', {user: req.session})
-    });
-
-    // logout
-    app.get('/users/logout', (req, res) => {
-        req.session.destroy();
-        res.redirect('/');
-    })
-
-    // ** POST routes **
-    // new
-    app.post('/users', (req, res) => {
+        }
+    },
+    create: (req, res) => {
         bcrypt.hash(req.body.password, 10) // using bcrypt to hash pw with 10 rounds of salt
             .then(hashed_password => {
                 const user = new User(); // creates new user, manually assigns values due to PW hasing
@@ -36,7 +40,7 @@ module.exports = (app, server, mongoose, UserSchema) => {
                         req.session.email = user.email;
                         req.session.first_name = user.first_name;
                         req.session.last_name = user.last_name;
-                        req.session.birthday = user.birthday;
+                        req.session.birthday = user.birthday.toLocaleDateString("en-US", options);
 
                         res.redirect('/users/show');
                     })
@@ -47,11 +51,9 @@ module.exports = (app, server, mongoose, UserSchema) => {
                         res.redirect('/');
                     });
             })
-            .catch(err => req.json(err));
-    });
-
-    // login
-    app.post('/users/login', (req, res) => {
+            .catch(err => console.log(err));
+    },
+    login: (req, res) => {
         User.findOne({email: req.body.email}) // query DB for email
             .then(data => {
                 bcrypt.compare(req.body.password, data.password) // compares form pw to db pw using bcrypt.
@@ -61,7 +63,7 @@ module.exports = (app, server, mongoose, UserSchema) => {
                             req.session.email = data.email;
                             req.session.first_name = data.first_name;
                             req.session.last_name = data.last_name;
-                            req.session.birthday = data.birthday;
+                            req.session.birthday = data.birthday.toLocaleDateString("en-US", options);
 
                             res.redirect('/users/show'); // redirect to login w/ session data
                         } else {
@@ -69,12 +71,16 @@ module.exports = (app, server, mongoose, UserSchema) => {
                             res.redirect('/');
                         }
                     })
-                    .catch(err => req.json(err)); // displays dev errors
+                    .catch(err => console.log(err)); // displays dev errors
             })
-            .catch( result => {
+            .catch(result => {
                 console.log(result); // displays errors on invalid username
                 req.flash('loginErrors', "Invalid username or password");
                 res.redirect('/');
             });
-    });
+    },
+    logout: (req, res) => {
+        req.session.destroy();
+        res.redirect('/');
+    }
 }
